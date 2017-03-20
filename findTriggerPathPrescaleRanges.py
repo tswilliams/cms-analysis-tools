@@ -55,7 +55,7 @@ class FixedTriggerPeriod:
 			self.l1seed = (l1seed[0], ' '.join(l1seed_list))
 
 	def __str__(self):
-		return "run {0} ls {1:>4} - run {2} ls {3:>4}".format(self.start_run, self.start_ls, self.end_run, self.end_ls) + " :  " + self.hlt_path + "  /{0:>4}".format(self.prescale) + "   " + str(self.l1seed)
+		return "run {0} ls {1:>4} - {2} ls {3:>4}".format(self.start_run, self.start_ls, self.end_run, self.end_ls) + " :  " + self.hlt_path + "  /{0:>5}".format(self.prescale) + "   " + str(self.l1seed)
 
 
 assert FixedTriggerPeriod("hlt_a_path/vX", 12345, 42, 12346, 55, 42, ("OR", "L1_HTT280/1 L1_HTT220/3500 L1_HTT270/1 L1_HTT320/1 L1_HTT300/1 L1_HTT160/5250 L1_HTT200/0 L1_HTT255/1 L1_HTT240/1")).l1seed[1] == "L1_HTT160/5250 L1_HTT200/0 L1_HTT220/3500 L1_HTT240/1 L1_HTT255/1 L1_HTT270/1 L1_HTT280/1 L1_HTT300/1 L1_HTT320/1"
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 		for row in csv_reader:
 			# FORMAT: run,cmsls,prescidx,totprescval,hltpath/prescval,logic,l1bit/prescval
 			run_num = int(row[0])
-			print "run_num:", run_num
+			# print "run_num:", run_num
 
 			# Ignore lines for runs that don't appear in list of certified lumi sections
 			if not is_good_run(run_num, cert_runs_lumi_sections):
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 		print hlt_path
 		for prescale_info in trigger_info_map[hlt_path]:
 			print "   ", prescale_info
-		print "  ... proccessing ..."
+		# print "  ... proccessing ..."
 		lumi_section_prescale_list = trigger_info_map[hlt_path]
 
 		# Step 0: Sort prescale info list so that ordered in run number & lumi section

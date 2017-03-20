@@ -47,11 +47,18 @@ class FixedTriggerPeriod:
 		self.end_run = end_run
 		self.end_ls = end_ls
 		self.prescale = prescale
-		self.l1seed = l1seed
+		if l1seed is None:
+			self.l1seed = l1seed
+		else:
+			l1seed_list = l1seed[1].split(' ')
+			l1seed_list.sort()
+			self.l1seed = (l1seed[0], ' '.join(l1seed_list))
 
 	def __str__(self):
-		return "run {0} ls {1:>4} - run {2} ls {3:>4}".format(self.start_run, self.start_ls, self.end_run, self.end_ls) + " :  " + self.hlt_path + "  /  " + str(self.prescale) + "   " + str(self.l1seed)
+		return "run {0} ls {1:>4} - run {2} ls {3:>4}".format(self.start_run, self.start_ls, self.end_run, self.end_ls) + " :  " + self.hlt_path + "  /{0:>4}".format(self.prescale) + "   " + str(self.l1seed)
 
+
+assert FixedTriggerPeriod("hlt_a_path/vX", 12345, 42, 12346, 55, 42, ("OR", "L1_HTT280/1 L1_HTT220/3500 L1_HTT270/1 L1_HTT320/1 L1_HTT300/1 L1_HTT160/5250 L1_HTT200/0 L1_HTT255/1 L1_HTT240/1")).l1seed[1] == "L1_HTT160/5250 L1_HTT200/0 L1_HTT220/3500 L1_HTT240/1 L1_HTT255/1 L1_HTT270/1 L1_HTT280/1 L1_HTT300/1 L1_HTT320/1"
 
 if __name__ == '__main__':
 

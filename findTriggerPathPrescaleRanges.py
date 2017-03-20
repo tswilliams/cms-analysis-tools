@@ -38,6 +38,20 @@ def get_lumi_range_intersection(run_num, min_lumi_sec, max_lumi_sec, good_run_lu
 assert get_lumi_range_intersection(1234, 1, float('+Inf'), {1234: [(12, 42), (53, 64)]}) == [(12, 42), (53, 64)]
 
 
+# Describes period with fixed prescale & L1 seed for given trigger path
+class FixedTriggerPeriod:
+	def __init__(self, hlt_path, start_run, start_ls, end_run, end_ls, prescale, l1seed):
+		self.hlt_path = hlt_path
+		self.start_run = start_run
+		self.start_ls = start_ls
+		self.end_run = end_run
+		self.end_ls = end_ls
+		self.prescale = prescale
+		self.l1seed = l1seed
+
+	def __str__(self):
+		return "run {0} ls {1:>4} - run {2} ls {3:>4}".format(self.start_run, self.start_ls, self.end_run, self.end_ls) + " :  " + self.hlt_path + "  /  " + str(self.prescale) + "   " + str(self.l1seed)
+
 
 if __name__ == '__main__':
 
@@ -79,16 +93,17 @@ if __name__ == '__main__':
 
 			start_ls = int(row[1])
 			prescale = int(row[3])
-			hlt_path = re.match(r"([A-Za-z0-9_]+_v\d+)/\d+", row[4]).group(1)
+			hlt_path_unversioned = re.match(r"([A-Za-z0-9_]+)_v\d+/\d+", row[4]).group(1)
+			hlt_path_full = re.match(r"([A-Za-z0-9_]+_v\d+)/\d+", row[4]).group(1)
 			l1seed = (row[5],row[6])
 
 			#print hlt_path, (run_num, start_ls, prescale, l1seed)
-			if hlt_path in trigger_info_map:
-				trigger_info_map[hlt_path] += [(run_num, start_ls, prescale, l1seed)]
+			if hlt_path_unversioned in trigger_info_map:
+				trigger_info_map[hlt_path_unversioned].append( FixedTriggerPeriod(hlt_path_full, run_num, start_ls, run_num, None, prescale, l1seed) )
 			else:
-				trigger_info_map[hlt_path] = [(run_num, start_ls, prescale, l1seed)]
+				trigger_info_map[hlt_path_unversioned] = [ FixedTriggerPeriod(hlt_path_full, run_num, start_ls, run_num, None, prescale, l1seed) ]
 
-
+# FixedTriggerPeriod: __init__(self, hlt_path, start_run, start_ls, end_run, end_ls, prescale, l1seed)
 	print
 	print
 	print "   >>>  PARSED TRIGGER INFO  <<<"
@@ -101,39 +116,41 @@ if __name__ == '__main__':
 		lumi_section_prescale_list = trigger_info_map[hlt_path]
 
 		# Step 0: Sort prescale info list so that ordered in run number & lumi section
-		lumi_section_prescale_list.sort(key=lambda x: (x[0],x[1]))
+		lumi_section_prescale_list.sort(key=lambda x: (x.start_run, x.start_ls))
 
 
 		# Step 1: Update LS info in list from just 'start LS' to ('start LS', 'end LS') tuple
 		for i in range(len(lumi_section_prescale_list)):
+			assert lumi_section_prescale_list[i].start_run == lumi_section_prescale_list[i].end_run
+
 			if i == (len(lumi_section_prescale_list) - 1):
-				lumi_section_prescale_list[i] = lumi_section_prescale_list[i][:1] + ((lumi_section_prescale_list[i][1], float('+Inf')), ) + lumi_section_prescale_list[i][2:]
+				lumi_section_prescale_list[i].end_ls = float('+Inf')
 			else:
 				# Make sure that list is ordered in (run section, lumi section)
-				assert(lumi_section_prescale_list[i][0] <= lumi_section_prescale_list[i+1][0])
-				if lumi_section_prescale_list[i][0] == lumi_section_prescale_list[i+1][0]:
+				assert(lumi_section_prescale_list[i].start_run <= lumi_section_prescale_list[i+1].start_run)
+				if lumi_section_prescale_list[i].start_run == lumi_section_prescale_list[i+1].start_run:
 					# Make sure that list is ordered in (run section, lumi section)
-					assert(lumi_section_prescale_list[i][1] < lumi_section_prescale_list[i+1][1])
+					assert(lumi_section_prescale_list[i].start_ls < lumi_section_prescale_list[i+1].start_ls)
 
-					lumi_section_prescale_list[i] = lumi_section_prescale_list[i][:1] + ((lumi_section_prescale_list[i][1], lumi_section_prescale_list[i+1][1]-1), ) + lumi_section_prescale_list[i][2:]
+					lumi_section_prescale_list[i].end_ls = lumi_section_prescale_list[i+1].start_ls - 1
 				else:
-					lumi_section_prescale_list[i] = lumi_section_prescale_list[i][:1] + ((lumi_section_prescale_list[i][1], float('+Inf')), ) + lumi_section_prescale_list[i][2:]
+					lumi_section_prescale_list[i].end_ls = float('+Inf')
 
 
 		# Step 2: Add 'prescale = 0' entries for runs that appear in the 'good LS' list, but in which this trigger path was not defined
-		runs_with_trigger_path_defined = set(x[0] for x in lumi_section_prescale_list)
+		runs_with_trigger_path_defined = set(x.start_run for x in lumi_section_prescale_list)
 		for cert_run_nr in sorted(cert_runs_lumi_sections.keys()):
 			if cert_run_nr not in runs_with_trigger_path_defined:
-				lumi_section_prescale_list += [(cert_run_nr, (0, float('+Inf')), 0, None)]
+				lumi_section_prescale_list.append( FixedTriggerPeriod("null", cert_run_nr, 0, cert_run_nr, float('+Inf'), 0, None) )
 
-		lumi_section_prescale_list.sort(key=lambda x: (x[0],x[1]))
+		lumi_section_prescale_list.sort(key=lambda x: (x.start_run, x.start_ls))
 
 		# for prescale_info in lumi_section_prescale_list:
 		# 	print "   ", prescale_info
 
 
 		# Step 3: Remove entries in trigger prescale info list that have no overlap with 'good LS' list
-		lumi_section_prescale_list = [item for item in lumi_section_prescale_list if len(get_lumi_range_intersection(item[0], item[1][0], item[1][1], cert_runs_lumi_sections)) != 0]
+		lumi_section_prescale_list = [item for item in lumi_section_prescale_list if len(get_lumi_range_intersection(item.start_run, item.start_ls, item.end_ls, cert_runs_lumi_sections)) != 0]
 
 
 		# print "  ... becomes ..."
@@ -150,9 +167,9 @@ if __name__ == '__main__':
 			item_i = lumi_section_prescale_list[i]
 			item_j = lumi_section_prescale_list[j]
 
-			if (j == len(lumi_section_prescale_list)-1) or (item_j[2] != lumi_section_prescale_list[j+1][2]) or (item_j[3] != lumi_section_prescale_list[j+1][3]):
+			if (j == len(lumi_section_prescale_list)-1) or (item_i.hlt_path != item_j.hlt_path) or (item_j.prescale != lumi_section_prescale_list[j+1].prescale) or (item_j.l1seed != lumi_section_prescale_list[j+1].l1seed):
 #				print "  Accumulated entries"
-				minimal_lumi_section_prescale_list += [( (item_i[0], item_i[1][0]), (item_j[0], item_j[1][1]), item_i[2], item_i[3])]
+				minimal_lumi_section_prescale_list.append( FixedTriggerPeriod(item_i.hlt_path, item_i.start_run, item_i.start_ls, item_j.end_run, item_j.end_ls, item_i.prescale, item_i.l1seed) )
 
 				if (j == len(lumi_section_prescale_list)-1):
 					break
@@ -174,7 +191,7 @@ if __name__ == '__main__':
 	for hlt_path in sorted(minimal_trigger_info_map.keys()):
 		print hlt_path
 		for prescale_info in minimal_trigger_info_map[hlt_path]:
-			if prescale_info[2] != 1:
+			if prescale_info.prescale != 1:
 				print "  xx ", prescale_info
 			else:
 				print "     ", prescale_info
